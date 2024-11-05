@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  bitcoind:
+    build:
+      context: ./bitcoind
+      args:
+        BITCOIN_VERSION: ${BITCOIN_VERSION}
+        TRIPLET: ${TRIPLET}
+    environment:
+      - NETWORK=${NETWORK}
+      - RPCAUTH=${RPCAUTH}
+      - SIGNETCHALLENGE=${SIGNETCHALLENGE}
+      - ADDNODE=${ADDNODE}
+      - SIGNETBLOCKTIME=${SIGNETBLOCKTIME}
+      - ADDR_TYPE=${ADDR_TYPE}
+      - DNSSEED=${DNSSEED}
+    ports:
+      - "127.0.0.1:28332:28332"
+      - "127.0.0.1:28333:28333"
+      - "127.0.0.1:29000:29000"
+      - "127.0.0.1:38332:38332"
+      - "127.0.0.1:38333:38333"
+    volumes:
+      - ./data/bitcoin:/srv/app/.bitcoin
+
+  electrs:
+    build:
+      context: ./electrs
+      args:
+        GIT_REF: ${GIT_REF}
+    environment:
+      - BTCHOST=${BTCHOST}
+      - BTCRPCPORT=${BTCRPCPORT}
+      - BTCP2PPORT=${BTCP2PPORT}
+      - BTCUSER=${BTCUSER}
+      - BTCPASS=${BTCPASS}
+      - PORT=${PORT}
+      - MONITORING_PORT=${MONITORING_PORT}
+      - NETWORK=${NETWORK}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - SIGNET_MAGIC=${SIGNET_MAGIC}
+    ports:
+      - "127.0.0.1:60601:60601"
+      - "127.0.0.1:34224:34224"
+    volumes:
+      - ./data/electrs:/srv/app/db
+    depends_on:
+      - bitcoind
