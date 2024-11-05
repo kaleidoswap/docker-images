@@ -11,7 +11,7 @@ RUN apt-get update && \
 
 WORKDIR /tmp
 
-ARG GIT_REF
+ARG GIT_REF="v0.10.0"
 ENV GIT_URL="https://github.com/romanz/electrs.git" \
     CARGO_NET_GIT_FETCH_WITH_CLI=true \
     CARGO_BUILD_JOBS=2 \
