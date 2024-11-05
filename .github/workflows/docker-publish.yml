@@ -11,7 +11,6 @@ env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   BITCOIND_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mutinynet-bitcoind
   ELECTRS_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mutinynet-electrs
-  # Default build arguments
   BITCOIN_VERSION: "c23afab47fbe"
   TRIPLET: "x86_64-linux-gnu"
   GIT_REF: "v0.10.0"
@@ -26,6 +25,25 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # Add swap space
+      - name: Add swap space
+        run: |
+          sudo swapoff -a
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          sudo swapon --show
+
+      # Free up disk space
+      - name: Free Disk Space (Ubuntu)
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -64,7 +82,12 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:master
+            network=host
 
+      # Build bitcoind first as it's smaller
       - name: Build and push bitcoind image
         uses: docker/build-push-action@v5
         with:
@@ -79,6 +102,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Build electrs with optimizations
       - name: Build and push electrs image
         uses: docker/build-push-action@v5
         with:
@@ -91,3 +115,6 @@ jobs:
             GIT_REF=${{ env.GIT_REF }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-contexts: |
+            app=.
+          outputs: type=registry,compression=gzip,compression-level=9
