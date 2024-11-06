@@ -2,11 +2,8 @@ version: '3.8'
 
 services:
   bitcoind:
-    build:
-      context: ./bitcoind
-      args:
-        BITCOIN_VERSION: ${BITCOIN_VERSION}
-        TRIPLET: ${TRIPLET}
+    image: kaleidoswap/mutinynet-bitcoind:latest
+    platform: linux/amd64
     environment:
       - NETWORK=${NETWORK}
       - RPCAUTH=${RPCAUTH}
@@ -15,20 +12,20 @@ services:
       - SIGNETBLOCKTIME=${SIGNETBLOCKTIME}
       - ADDR_TYPE=${ADDR_TYPE}
       - DNSSEED=${DNSSEED}
+    networks:
+      - kaleidoswap-network
     ports:
-      - "127.0.0.1:28332:28332"
-      - "127.0.0.1:28333:28333"
-      - "127.0.0.1:29000:29000"
-      - "127.0.0.1:38332:38332"
-      - "127.0.0.1:38333:38333"
+      - "28332:28332"
+      - "28333:28333"
+      - "29000:29000"
+      - "38332:38332"
+      - "38333:38333"
     volumes:
       - ./data/bitcoin:/srv/app/.bitcoin
 
   electrs:
-    build:
-      context: ./electrs
-      args:
-        GIT_REF: ${GIT_REF}
+    image: kaleidoswap/mutinynet-electrs:latest
+    platform: linux/amd64
     environment:
       - BTCHOST=${BTCHOST}
       - BTCRPCPORT=${BTCRPCPORT}
@@ -41,9 +38,48 @@ services:
       - LOG_LEVEL=${LOG_LEVEL}
       - SIGNET_MAGIC=${SIGNET_MAGIC}
     ports:
-      - "127.0.0.1:60601:60601"
-      - "127.0.0.1:34224:34224"
+      - "50001:50001"
+      - "34224:34224"
+    networks:
+      - kaleidoswap-network
     volumes:
       - ./data/electrs:/srv/app/db
     depends_on:
       - bitcoind
+
+  proxy:
+    image: ghcr.io/rgb-tools/rgb-proxy-server:0.3.0
+    ports:
+      - 3000:3000
+    networks:
+      - kaleidoswap-network
+    
+  rln-node:
+    image: kaleidoswap/rgb-lightning-node:latest
+    platform: linux/amd64
+    command: >
+      /tmp/kaleidoswap/dataldk1/  
+      --daemon-listening-port 3001
+      --ldk-peer-listening-port 9735
+      --network ${NETWORK}
+    depends_on:
+      - bitcoind
+      - electrs
+    networks:
+      - kaleidoswap-network
+    ports:
+      - 3001:3001
+      - 9735:9735
+    volumes:
+      - ./data/rln-node:/tmp/kaleidoswap/dataldk3/
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/nodeinfo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+
+networks:
+  kaleidoswap-network:
+    # Allow setting it to false for testing
+    external: false
