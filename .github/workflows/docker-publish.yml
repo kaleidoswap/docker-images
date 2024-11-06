@@ -17,8 +17,7 @@ env:
 
 jobs:
   build-and-push:
-    runs-on: self-hosted
-    labels: [ "kaleidoswap", "Linux", "X64" ]
+    runs-on: [ "self-hosted", "kaleidoswap" ]
 
     permissions:
       contents: read
