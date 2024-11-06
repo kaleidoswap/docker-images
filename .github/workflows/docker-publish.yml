@@ -27,25 +27,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Add swap space
-      - name: Add swap space
-        run: |
-          sudo swapoff -a
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          sudo swapon --show
-
-      # Free up disk space
-      - name: Free Disk Space (Ubuntu)
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
