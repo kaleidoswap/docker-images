@@ -7,10 +7,13 @@ RUN apt-get update && \
     cmake \
     git \
     libsnappy-dev \
+    curl \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp
 
+# Set environment variables
 ARG GIT_REF="v0.10.0"
 ENV GIT_URL="https://github.com/romanz/electrs.git" \
     CARGO_NET_GIT_FETCH_WITH_CLI=true \
@@ -19,11 +22,30 @@ ENV GIT_URL="https://github.com/romanz/electrs.git" \
     CARGO_HOME=/tmp/cargo \
     CARGO_TARGET_DIR=/tmp/target
 
-# Clone and build with optimized settings
-RUN git clone -b ${GIT_REF} --depth 1 ${GIT_URL} && \
+# Install specific rust toolchain with retries
+RUN rustup default stable && \
+    rustup component add rustfmt && \
+    rustup component add clippy && \
+    cargo --version && \
+    rustc --version
+
+# Clone and build with optimized settings and retries
+RUN --mount=type=cache,target=/tmp/cargo/registry \
+    --mount=type=cache,target=/tmp/cargo/git \
+    --mount=type=cache,target=/tmp/target \
+    git clone -b ${GIT_REF} --depth 1 ${GIT_URL} && \
     cd electrs && \
-    cargo build --locked --release --jobs 2 && \
-    cp /tmp/target/release/electrs /tmp/
+    (for i in 1 2 3; do \
+        cargo build --locked --release --jobs 2 && break || \
+        if [ $i -lt 3 ]; then \
+            echo "Retry attempt $i of 3" && \
+            sleep 10; \
+        else \
+            exit 1; \
+        fi \
+    done) && \
+    mkdir -p /tmp/bin && \
+    cp /tmp/target/release/electrs /tmp/bin/
 
 FROM debian:bookworm-slim
 
@@ -38,7 +60,8 @@ RUN adduser --home ${APP_DIR} --shell /bin/bash --disabled-login \
 
 WORKDIR "${APP_DIR}"
 
-COPY --from=builder --chown=${USER}:${USER} /tmp/electrs .
+# Copy the binary from the builder stage
+COPY --from=builder --chown=${USER}:${USER} /tmp/bin/electrs .
 
 RUN mkdir -p /etc/electrs ${APP_DIR}/db
 COPY start-electrs.sh /usr/local/bin
