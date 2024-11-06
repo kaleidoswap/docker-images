@@ -2,6 +2,7 @@ name: Build and Push Docker Images
 
 on:
   push:
+    branches: [ "main" ]
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "main" ]
@@ -16,7 +17,9 @@ env:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    labels: [ "kaleidoswap", "Linux", "X64" ]
+
     permissions:
       contents: read
       packages: write
