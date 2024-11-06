@@ -1,0 +1,75 @@
+services:
+  bitcoind:
+    container_name: bitcoind
+    build:
+      context: ./bitcoind
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    env_file:
+      - .env
+    volumes:
+      - ./data/bitcoin:/srv/app/.bitcoin
+    ports:
+      - "28332:28332"
+      - "28333:28333"
+      - "29000:29000"
+      - "38332:38332"
+      - "38333:38333"
+    networks:
+      - kaleidoswap-network
+
+  electrs:
+    container_name: electrs
+    build:
+      context: ./electrs
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    env_file:
+      - .env
+    volumes:
+      - ./data/electrs:/srv/app/db
+    ports:
+      - "60601:60601"
+      - "34224:34224"
+    networks:
+      - kaleidoswap-network
+    depends_on:
+      - bitcoind
+
+  proxy:
+    container_name: proxy
+    image: ghcr.io/rgb-tools/rgb-proxy-server:0.3.0
+    ports:
+      - 3000:3000
+    networks:
+      - kaleidoswap-network
+    
+  rln-node:
+    container_name: rln-node
+    image: kaleidoswap/rgb-lightning-node:latest
+    platform: linux/amd64
+    command: >
+      /tmp/kaleidoswap/dataldk1/  
+      --daemon-listening-port 3001
+      --ldk-peer-listening-port 9735
+      --network ${NETWORK}
+    depends_on:
+      - bitcoind
+      - electrs
+    networks:
+      - kaleidoswap-network
+    ports:
+      - 3001:3001
+      - 9735:9735
+    volumes:
+      - ./data/rln-node:/tmp/kaleidoswap/dataldk/
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/nodeinfo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+networks:
+  kaleidoswap-network:
+    # Allow setting it to false for testing
+    external: false
