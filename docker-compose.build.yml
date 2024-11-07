@@ -23,7 +23,6 @@ services:
     build:
       context: ./electrs
       dockerfile: Dockerfile
-    platform: linux/amd64
     env_file:
       - .env
     volumes:
@@ -47,9 +46,8 @@ services:
   rln-node:
     container_name: rln-node
     image: kaleidoswap/rgb-lightning-node:latest
-    platform: linux/amd64
     command: >
-      /tmp/kaleidoswap/dataldk1/  
+      /tmp/kaleidoswap/dataldk/  
       --daemon-listening-port 3001
       --ldk-peer-listening-port 9735
       --network ${NETWORK}

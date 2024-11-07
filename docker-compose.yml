@@ -2,7 +2,6 @@ services:
   bitcoind:
     container_name: bitcoind
     image: kaleidoswap/mutinynet-bitcoind:latest
-    platform: linux/amd64
     env_file:
       - .env
     volumes:
@@ -19,7 +18,6 @@ services:
   electrs:
     container_name: electrs
     image: kaleidoswap/mutinynet-electrs:latest
-    platform: linux/amd64
     env_file:
       - .env
     volumes:
@@ -34,8 +32,7 @@ services:
 
   proxy:
     container_name: proxy
-    #image: ghcr.io/rgb-tools/rgb-proxy-server:0.3.0
-    image: ghcr.io/rgb-tools/rgb-proxy-server:0.2.1
+    image: ghcr.io/rgb-tools/rgb-proxy-server:0.3.0
     ports:
       - 3000:3000
     networks:
@@ -44,9 +41,8 @@ services:
   rln-node:
     container_name: rln-node
     image: kaleidoswap/rgb-lightning-node:latest
-    platform: linux/amd64
     command: >
-      /tmp/kaleidoswap/dataldk1/  
+      /tmp/kaleidoswap/dataldk/  
       --daemon-listening-port 3001
       --ldk-peer-listening-port 9735
       --network ${NETWORK}
