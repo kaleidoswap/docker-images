@@ -7,9 +7,17 @@ WORKDIR /tmp
 
 ARG GIT_REF="v0.10.0"
 ENV GIT_URL="https://github.com/romanz/electrs.git"
-RUN git clone -b ${GIT_REF} --depth 1 ${GIT_URL} \
-    && cd electrs \
-    && cargo install --locked --path .
+
+# Set CARGO_NET_GIT_FETCH_WITH_CLI to improve memory usage
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+ENV CARGO_BUILD_JOBS=4
+
+# Clone step
+RUN git clone -b ${GIT_REF} --depth 1 ${GIT_URL}
+
+# Build step
+RUN cd electrs \
+    && RUSTFLAGS="-C opt-level=2" cargo install --locked --path . --jobs 4
 
 FROM debian:bookworm-slim
 
