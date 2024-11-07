@@ -25,15 +25,11 @@ SIGNET_MAGIC=${SIGNET_MAGIC:-"a5df2dcb"}
 [[ ! "${LOG_LEVEL}" =~ ^(trace|debug|info|warning)$ ]] && \
     _die "incorrect log level; available levels: trace, debug, info, warning"
 
-# Add default USER if not set
-USER=${USER:-"blits"}
-APP_DIR=${APP_DIR:-"/srv/app"}
-
 # set ownership
 echo "Setting file ownership..."
 [ -n "${MYUID}" ] && usermod -u "${MYUID}" "${USER}"
 [ -n "${MYGID}" ] && groupmod -g "${MYGID}" "${USER}"
-[ -d "${APP_DIR}" ] && find "${APP_DIR}" \( -not -uid $(id -u ${USER}) -or -not -gid $(id -g ${USER}) \) \
+find "${APP_DIR}" \( -not -uid $(id -u ${USER}) -or -not -gid $(id -g ${USER}) \) \
     -exec chown --silent "${USER}:${USER}" "{}" +
 
 # create config file
