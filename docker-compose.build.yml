@@ -17,6 +17,8 @@ services:
       - "38333:38333"
     networks:
       - kaleidoswap-network
+    profiles:
+      - full
 
   electrs:
     container_name: electrs
@@ -34,6 +36,8 @@ services:
       - kaleidoswap-network
     depends_on:
       - bitcoind
+    profiles:
+      - full
 
   proxy:
     container_name: proxy
@@ -42,30 +46,36 @@ services:
       - 3000:3000
     networks:
       - kaleidoswap-network
+    profiles:
+      - full
     
   rln-node:
     container_name: rln-node
     image: kaleidoswap/rgb-lightning-node:latest
     command: >
       /tmp/kaleidoswap/dataldk/  
-      --daemon-listening-port 3001
-      --ldk-peer-listening-port 9735
-      --network ${NETWORK}
+      --daemon-listening-port ${RLN_API_PORT:-3001}
+      --ldk-peer-listening-port ${RLN_PEER_PORT:-9735}
+      --network ${NETWORK:-signet}
     depends_on:
       - bitcoind
       - electrs
+      - proxy
     networks:
       - kaleidoswap-network
     ports:
-      - 3001:3001
-      - 9735:9735
+      - "${RLN_API_PORT:-3001}:${RLN_API_PORT:-3001}"
+      - "${RLN_PEER_PORT:-9735}:${RLN_PEER_PORT:-9735}"
     volumes:
-      - ./data/rln-node:/tmp/kaleidoswap/dataldk/
+      - ${RLN_DATA_DIR:-./data/rln-node}:/tmp/kaleidoswap/dataldk/
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/nodeinfo"]
+      test: ["CMD", "curl", "-f", "http://localhost:${RLN_API_PORT:-3001}/nodeinfo"]
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - full
+      - node-only
     
 networks:
   kaleidoswap-network:
