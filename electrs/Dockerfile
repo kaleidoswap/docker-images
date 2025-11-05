@@ -5,7 +5,7 @@ RUN apt-get update \
 
 WORKDIR /tmp
 
-ARG GIT_REF="v0.10.0"
+ARG GIT_REF="v0.10.10"
 ENV GIT_URL="https://github.com/romanz/electrs.git"
 
 # Set CARGO_NET_GIT_FETCH_WITH_CLI to improve memory usage
