@@ -51,7 +51,8 @@ services:
       /tmp/kaleidoswap/dataldk/  
       --daemon-listening-port ${RLN_API_PORT:-3001}
       --ldk-peer-listening-port ${RLN_PEER_PORT:-9735}
-      --network ${NETWORK:-signet}
+      --disable-authentication
+      --network ${NETWORK:-regtest}
     networks:
       - kaleidoswap-network
     ports:
