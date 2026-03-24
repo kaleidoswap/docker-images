@@ -13,11 +13,11 @@ env:
   ELECTRS_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mutinynet-electrs
   BITCOIN_VERSION: "c23afab47fbe"
   TRIPLET: "x86_64-linux-gnu"
-  GIT_REF: "v0.10.0"
+  GIT_REF: "v0.11.0"
 
 jobs:
   build-and-push:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     permissions:
       contents: read
