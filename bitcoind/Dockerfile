@@ -1,9 +1,9 @@
-FROM debian:buster-slim AS builder
+FROM debian:bookworm-slim AS builder
 
-ARG BITCOIN_VERSION="c23afab47fbe"
+ARG BITCOIN_VERSION="38351585048e"
 ARG TRIPLET="x86_64-linux-gnu"
 
-ENV BITCOIN_DOWNLOAD_URL="https://github.com/benthecarman/bitcoin/releases/download/mutinynet-cat-lnhance/bitcoin-${BITCOIN_VERSION}-${TRIPLET}.tar.gz"
+ENV BITCOIN_DOWNLOAD_URL="https://github.com/benthecarman/bitcoin/releases/download/mutinynet-inq-29/bitcoin-${BITCOIN_VERSION}-${TRIPLET}.tar.gz"
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -28,7 +28,7 @@ RUN wget -qO "bitcoin.tar.gz" "${BITCOIN_DOWNLOAD_URL}" && \
         "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-util" && \
     rm -rf /tmp/bin/bitcoin-${BITCOIN_VERSION} bitcoin.tar.gz
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 
 ENV PATH=/opt/bitcoin/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     APP_DIR=/srv/app \

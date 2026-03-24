@@ -11,7 +11,7 @@ env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   BITCOIND_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mutinynet-bitcoind
   ELECTRS_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mutinynet-electrs
-  BITCOIN_VERSION: "c23afab47fbe"
+  BITCOIN_VERSION: "38351585048e"
   TRIPLET: "x86_64-linux-gnu"
   GIT_REF: "v0.11.0"
 
