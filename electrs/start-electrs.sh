@@ -6,22 +6,19 @@ _die() {
 }
 
 # get params
-MYUID=${MYUID:-"1000"}
-MYGID=${MYGID:-"1000"}
 BTCHOST=${BTCHOST:-"bitcoind"}
-BTCRPCPORT=${BTCRPCPORT:-"38332"}
-BTCP2PPORT=${BTCP2PPORT:-"38333"}
+BTCRPCPORT=${BTCRPCPORT:-"18443"}
+BTCP2PPORT=${BTCP2PPORT:-"18444"}
 BTCUSER=${BTCUSER:-"user"}
-BTCPASS=${BTCPASS:-"password"}
-ELECTRS_PORT=${ELECTRS_PORT:-"60601"}
-MONITORING_PORT=${MONITORING_PORT:-"34224"}
-NETWORK=${NETWORK:-"signet"}
+BTCPASS=${BTCPASS:-"default_password"}
+PORT=${PORT:-"50001"}
+MONITORING_PORT=${MONITORING_PORT:-"24224"}
+NETWORK=${NETWORK:-"regtest"}
 LOG_LEVEL=${LOG_LEVEL:-"info"}
-SIGNET_MAGIC=${SIGNET_MAGIC:-"a5df2dcb"}
 
 # check params
-[[ ! "${NETWORK}" =~ ^(mainnet|testnet|regtest|signet)$ ]] && \
-    _die "incorrect network; available networks: mainnet, testnet, regtest, signet"
+[[ ! "${NETWORK}" =~ ^(mainnet|testnet|testnet4|regtest|signet)$ ]] && \
+    _die "incorrect network; available networks: mainnet, testnet, testnet4, regtest, signet"
 [[ ! "${LOG_LEVEL}" =~ ^(trace|debug|info|warning)$ ]] && \
     _die "incorrect log level; available levels: trace, debug, info, warning"
 
@@ -29,7 +26,7 @@ SIGNET_MAGIC=${SIGNET_MAGIC:-"a5df2dcb"}
 echo "Setting file ownership..."
 [ -n "${MYUID}" ] && usermod -u "${MYUID}" "${USER}"
 [ -n "${MYGID}" ] && groupmod -g "${MYGID}" "${USER}"
-find "${APP_DIR}" \( -not -uid $(id -u ${USER}) -or -not -gid $(id -g ${USER}) \) \
+find "${APP_DIR}" \( -not -uid "$(id -u "${USER}")" -or -not -gid "$(id -g "${USER}")" \) \
     -exec chown --silent "${USER}:${USER}" "{}" +
 
 # create config file
@@ -41,13 +38,16 @@ daemon_rpc_addr = "${BTCHOST}:${BTCRPCPORT}"
 daemon_p2p_addr = "${BTCHOST}:${BTCP2PPORT}"
 auth = "${BTCUSER}:${BTCPASS}"
 network = "${NETWORK}"
-electrum_rpc_addr = "0.0.0.0:${ELECTRS_PORT}"
+electrum_rpc_addr = "0.0.0.0:${PORT}"
 index_batch_size = 10
 jsonrpc_import = true
 log_filters = "${LOG_LEVEL}"
 monitoring_addr = "0.0.0.0:${MONITORING_PORT}"
-signet_magic = "${SIGNET_MAGIC}"
 EOF
+
+if [ "${NETWORK}" = "signet" ] && [ -n "${SIGNET_MAGIC}" ]; then
+  echo "signet_magic = \"${SIGNET_MAGIC}\"" >> /etc/electrs/config.toml
+fi
 
 # construct command
 cmd="${APP_DIR}/electrs run --db-dir ${APP_DIR}/db $@"

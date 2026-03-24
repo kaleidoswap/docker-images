@@ -25,6 +25,8 @@ services:
     build:
       context: ./electrs
       dockerfile: Dockerfile
+      args:
+        GIT_REF: ${GIT_REF:-v0.11.0}
     env_file:
       - .env
     volumes:
