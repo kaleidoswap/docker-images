@@ -42,6 +42,10 @@ ARGS="${ARGS} --db-dir ${APP_DIR}/db"
 ARGS="${ARGS} --http-addr 0.0.0.0:${HTTP_PORT}"
 ARGS="${ARGS} --electrum-rpc-addr 0.0.0.0:${ELECTRUM_PORT}"
 ARGS="${ARGS} --monitoring-addr 0.0.0.0:${MONITORING_PORT}"
+# jsonrpc-import: fetch blocks via RPC instead of parsing blk*.dat off disk.
+# The blk-files fetcher panics on Mutinynet ('failed to index N blocks from
+# blk*.dat'); RPC import is robust (matches how the regtest esplora runs).
+[ "${JSONRPC_IMPORT:-true}" = "true" ] && ARGS="${ARGS} --jsonrpc-import"
 ARGS="${ARGS} --cors '*' ${V}"
 
 cmd="${APP_DIR}/electrs ${ARGS} $@"

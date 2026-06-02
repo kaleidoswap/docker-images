@@ -6,7 +6,9 @@
 # HTTP REST API (--http-addr) AND supports a custom --signet-magic, so it can
 # index Mutinynet's custom signet.
 
-FROM rust:1.92.0-slim-trixie AS builder
+# Rust pinned to the fork's era (MutinyWallet/electrs new-index, last commit
+# 2023-04). Newer toolchains panic building its pinned proc-macro2 1.0.37.
+FROM rust:1.69-slim-bullseye AS builder
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends clang cmake git build-essential libsnappy-dev
