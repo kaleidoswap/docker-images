@@ -11,6 +11,7 @@ env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   BITCOIND_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mutinynet-bitcoind
   ELECTRS_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mutinynet-electrs
+  ESPLORA_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mutinynet-esplora
   BITCOIN_VERSION: "38351585048e"
   TRIPLET: "x86_64-linux-gnu"
   GIT_REF: "v0.11.0"
@@ -51,6 +52,19 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.ELECTRS_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract metadata for esplora
+        id: meta-esplora
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ESPLORA_IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -100,3 +114,17 @@ jobs:
           build-contexts: |
             app=.
           outputs: type=registry,compression=gzip,compression-level=9
+
+      # Esplora (MutinyWallet/electrs new-index fork) — compiles electrs from
+      # Rust source, so amd64 only: an emulated arm64 Rust build would be
+      # extremely slow / time out, and the only consumer (kaleido-core) is amd64.
+      - name: Build and push esplora image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./esplora
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-esplora.outputs.tags }}
+          labels: ${{ steps.meta-esplora.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
