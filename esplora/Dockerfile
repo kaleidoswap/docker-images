@@ -5,21 +5,40 @@
 # romanz/electrs (electrum-only, used by ../electrs), this serves the esplora
 # HTTP REST API (--http-addr) AND supports a custom --signet-magic, so it can
 # index Mutinynet's custom signet.
+#
+# patches/ adds what the fork predates, ported from Blockstream/electrs:
+# - POST /txs/package: a child with its unconfirmed parents relayed to
+#   bitcoind's `submitpackage` (Bitcoin Core 28+), so a child's fee can carry
+#   a parent below the mempool minimum (CPFP). The maker pushes stuck RGB HTLC
+#   claims through with it.
 
 # Rust pinned to the fork's era (MutinyWallet/electrs new-index, last commit
 # 2023-04). Newer toolchains panic building its pinned proc-macro2 1.0.37.
 FROM rust:1.69-slim-bullseye AS builder
 
-RUN apt-get update \
+# Debian 11 left LTS on 2026-08-31 and deb.debian.org no longer serves its
+# security pocket, so the build stage installs its tools from the permanent
+# archive instead. Only this throwaway stage runs bullseye; the runtime image
+# below is trixie.
+RUN sed -i -e '/bullseye-security/d' \
+        -e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|' \
+        /etc/apt/sources.list \
+    && apt-get -o Acquire::Check-Valid-Until=false update \
     && apt-get install -y --no-install-recommends clang cmake git build-essential libsnappy-dev
 
 WORKDIR /tmp
 
 ARG GIT_URL="https://github.com/MutinyWallet/electrs.git"
 ARG GIT_REF="new-index"
+# The fork's last commit, pinned so the patches apply exactly as written.
+ARG GIT_COMMIT="e14028b486c6a24b411c12821bb2a991e58dce09"
 
-RUN git clone -b ${GIT_REF} --depth 1 ${GIT_URL} \
+COPY patches /tmp/patches
+
+RUN git clone -b ${GIT_REF} ${GIT_URL} \
     && cd electrs \
+    && git checkout ${GIT_COMMIT} \
+    && git apply --verbose /tmp/patches/*.patch \
     && cargo build --release --bin electrs \
     && cp target/release/electrs /tmp/electrs-bin
 

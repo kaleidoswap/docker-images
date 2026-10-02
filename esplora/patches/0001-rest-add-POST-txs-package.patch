@@ -1,0 +1,190 @@
+From ab9242f787e40cbb2c4766ab567e191e537fd46a Mon Sep 17 00:00:00 2001
+From: Arshia <arshia@kaleidoswap.com>
+Date: Fri, 2 Oct 2026 13:14:30 +0200
+Subject: [PATCH] rest: add POST /txs/package (submitpackage)
+
+Ported from Blockstream/electrs: a JSON array of hex transactions,
+parents before children, relayed to bitcoind's submitpackage (Bitcoin
+Core 28+), so a child's fee can carry a parent below the mempool minimum.
+Accepted transactions are indexed into the local mempool at once, as
+POST /tx does. Optional maxfeerate / maxburnamount query parameters are
+passed through.
+---
+ src/daemon.rs          | 63 ++++++++++++++++++++++++++++++++++++++++++
+ src/new_index/query.rs | 17 +++++++++++-
+ src/rest.rs            | 43 ++++++++++++++++++++++++++++
+ 3 files changed, 122 insertions(+), 1 deletion(-)
+
+diff --git a/src/daemon.rs b/src/daemon.rs
+index e75b9df..0f1a521 100644
+--- a/src/daemon.rs
++++ b/src/daemon.rs
+@@ -96,6 +96,48 @@ fn parse_jsonrpc_reply(mut reply: Value, method: &str, expected_id: u64) -> Resu
+     bail!("non-object reply: {:?}", reply);
+ }
+ 
++/// `submitpackage`'s reply, as Bitcoin Core returns it. Ported from
++/// Blockstream/electrs.
++#[derive(Serialize, Deserialize, Debug)]
++pub struct SubmitPackageResult {
++    package_msg: String,
++    #[serde(rename = "tx-results")]
++    tx_results: HashMap<String, TxResult>,
++    #[serde(rename = "replaced-transactions")]
++    replaced_transactions: Option<Vec<String>>,
++}
++
++#[derive(Serialize, Deserialize, Debug)]
++pub struct TxResult {
++    txid: String,
++    #[serde(rename = "other-wtxid")]
++    other_wtxid: Option<String>,
++    vsize: Option<u32>,
++    fees: Option<MempoolFeesSubmitPackage>,
++    error: Option<String>,
++}
++
++#[derive(Serialize, Deserialize, Debug)]
++pub struct MempoolFeesSubmitPackage {
++    base: f64,
++    #[serde(rename = "effective-feerate")]
++    effective_feerate: Option<f64>,
++    #[serde(rename = "effective-includes")]
++    effective_includes: Option<Vec<String>>,
++}
++
++impl SubmitPackageResult {
++    /// Txids of the transactions this submission put in the daemon's
++    /// mempool (those without a per-transaction error).
++    pub fn accepted_txids(&self) -> Vec<Txid> {
++        self.tx_results
++            .values()
++            .filter(|tx| tx.error.is_none())
++            .filter_map(|tx| Txid::from_hex(&tx.txid).ok())
++            .collect()
++    }
++}
++
+ #[derive(Serialize, Deserialize, Debug)]
+ pub struct BlockchainInfo {
+     pub chain: String,
+@@ -536,6 +578,27 @@ impl Daemon {
+         )
+     }
+ 
++    /// `submitpackage` (Bitcoin Core 28+): a child with its unconfirmed
++    /// parents, evaluated together, so the child's fee can carry a parent
++    /// below the mempool minimum. Ported from Blockstream/electrs.
++    pub fn submit_package(
++        &self,
++        txhex: Vec<String>,
++        maxfeerate: Option<f64>,
++        maxburnamount: Option<f64>,
++    ) -> Result<SubmitPackageResult> {
++        let params = match (maxfeerate, maxburnamount) {
++            (Some(rate), Some(burn)) => {
++                json!([txhex, format!("{:.8}", rate), format!("{:.8}", burn)])
++            }
++            (Some(rate), None) => json!([txhex, format!("{:.8}", rate)]),
++            (None, Some(burn)) => json!([txhex, null, format!("{:.8}", burn)]),
++            (None, None) => json!([txhex]),
++        };
++        let result = self.request("submitpackage", params)?;
++        from_value::<SubmitPackageResult>(result).chain_err(|| "invalid submitpackage reply")
++    }
++
+     // Get estimated feerates for the provided confirmation targets using a batch RPC request
+     // Missing estimates are logged but do not cause a failure, whatever is available is returned
+     #[allow(clippy::float_cmp)]
+diff --git a/src/new_index/query.rs b/src/new_index/query.rs
+index 1e621ac..0fd89c4 100644
+--- a/src/new_index/query.rs
++++ b/src/new_index/query.rs
+@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
+ 
+ use crate::chain::{Network, OutPoint, Transaction, TxOut, Txid};
+ use crate::config::Config;
+-use crate::daemon::Daemon;
++use crate::daemon::{Daemon, SubmitPackageResult};
+ use crate::errors::*;
+ use crate::new_index::{ChainQuery, Mempool, ScriptStats, SpendingInput, Utxo};
+ use crate::util::{is_spendable, BlockId, Bytes, TransactionStatus};
+@@ -78,6 +78,21 @@ impl Query {
+         Ok(txid)
+     }
+ 
++    pub fn submit_package(
++        &self,
++        txhex: Vec<String>,
++        maxfeerate: Option<f64>,
++        maxburnamount: Option<f64>,
++    ) -> Result<SubmitPackageResult> {
++        let result = self.daemon.submit_package(txhex, maxfeerate, maxburnamount)?;
++        // Index what was accepted at once, as broadcast_raw() does.
++        let mut mempool = self.mempool.write().unwrap();
++        for txid in result.accepted_txids() {
++            mempool.add_by_txid(&self.daemon, &txid);
++        }
++        Ok(result)
++    }
++
+     pub fn utxo(&self, scripthash: &[u8]) -> Result<Vec<Utxo>> {
+         let mut utxos = self.chain.utxo(scripthash, self.config.utxos_limit)?;
+         let mempool = self.mempool();
+diff --git a/src/rest.rs b/src/rest.rs
+index 1082156..9dc342f 100644
+--- a/src/rest.rs
++++ b/src/rest.rs
+@@ -1025,6 +1025,49 @@ fn handle_request(
+                 .map_err(|err| HttpError::from(err.description().to_string()))?;
+             http_message(StatusCode::OK, txid.to_hex(), 0)
+         }
++        (&Method::POST, Some(&"txs"), Some(&"package"), None, None, None) => {
++            // Ported from Blockstream/electrs: a JSON array of hex
++            // transactions, parents before children, relayed to bitcoind's
++            // `submitpackage` (Bitcoin Core 28+).
++            let txhexes: Vec<String> =
++                serde_json::from_str(String::from_utf8(body.to_vec())?.as_str())?;
++            if txhexes.len() > 25 {
++                Result::Err(HttpError::from(
++                    "Exceeded maximum of 25 transactions".to_string(),
++                ))?
++            }
++            let maxfeerate = query_params
++                .get("maxfeerate")
++                .map(|s| {
++                    s.parse::<f64>()
++                        .map_err(|_| HttpError::from("Invalid maxfeerate".to_string()))
++                })
++                .transpose()?;
++            let maxburnamount = query_params
++                .get("maxburnamount")
++                .map(|s| {
++                    s.parse::<f64>()
++                        .map_err(|_| HttpError::from("Invalid maxburnamount".to_string()))
++                })
++                .transpose()?;
++            // each transaction must be of reasonable size (more than 60 bytes,
++            // within the 400kWU standardness limit) and valid hex
++            for (index, txhex) in txhexes.iter().enumerate() {
++                if !(120..800_000).contains(&txhex.len()) {
++                    Result::Err(HttpError::from(format!(
++                        "Invalid transaction size for item {}",
++                        index
++                    )))?
++                }
++                hex::decode(txhex).map_err(|_| {
++                    HttpError::from(format!("Invalid transaction hex for item {}", index))
++                })?;
++            }
++            let result = query
++                .submit_package(txhexes, maxfeerate, maxburnamount)
++                .map_err(|err| HttpError::from(err.description().to_string()))?;
++            json_response(result, TTL_SHORT)
++        }
+ 
+         (&Method::GET, Some(&"mempool"), None, None, None, None) => {
+             json_response(query.mempool().backlog_stats(), TTL_SHORT)
+-- 
+2.54.0 (Apple Git-157)
+
