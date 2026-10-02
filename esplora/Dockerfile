@@ -1,12 +1,13 @@
 # Esplora HTTP REST indexer for Mutinynet (custom signet).
 #
-# Built from MutinyWallet's fork of Blockstream/electrs (the "new-index" /
-# esplora backend) — the same engine that powers mutinynet.com/api. Unlike
-# romanz/electrs (electrum-only, used by ../electrs), this serves the esplora
-# HTTP REST API (--http-addr) AND supports a custom --signet-magic, so it can
-# index Mutinynet's custom signet.
+# Built from kaleidoswap/electrs, our fork of MutinyWallet's fork of
+# Blockstream/electrs (the "new-index" / esplora backend) — the same engine
+# that powers mutinynet.com/api. Unlike romanz/electrs (electrum-only, used by
+# ../electrs), this serves the esplora HTTP REST API (--http-addr) AND supports
+# a custom --signet-magic, so it can index Mutinynet's custom signet.
 #
-# patches/ adds what the fork predates, ported from Blockstream/electrs:
+# On top of MutinyWallet's last commit, our fork adds what it predates, ported
+# from Blockstream/electrs:
 # - POST /txs/package: a child with its unconfirmed parents relayed to
 #   bitcoind's `submitpackage` (Bitcoin Core 28+), so a child's fee can carry
 #   a parent below the mempool minimum (CPFP). The maker pushes stuck RGB HTLC
@@ -28,17 +29,16 @@ RUN sed -i -e '/bullseye-security/d' \
 
 WORKDIR /tmp
 
-ARG GIT_URL="https://github.com/MutinyWallet/electrs.git"
+ARG GIT_URL="https://github.com/kaleidoswap/electrs.git"
 ARG GIT_REF="new-index"
-# The fork's last commit, pinned so the patches apply exactly as written.
-ARG GIT_COMMIT="e14028b486c6a24b411c12821bb2a991e58dce09"
-
-COPY patches /tmp/patches
+# "rest: add POST /txs/package", pinned so a push to the fork can't change
+# the image. The full clone fetches every branch, so the commit resolves
+# whether or not it has merged into new-index yet.
+ARG GIT_COMMIT="ab9242f787e40cbb2c4766ab567e191e537fd46a"
 
 RUN git clone -b ${GIT_REF} ${GIT_URL} \
     && cd electrs \
     && git checkout ${GIT_COMMIT} \
-    && git apply --verbose /tmp/patches/*.patch \
     && cargo build --release --bin electrs \
     && cp target/release/electrs /tmp/electrs-bin
 

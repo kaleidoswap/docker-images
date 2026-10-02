@@ -1,5 +1,5 @@
 #!/bin/bash
-# End to end check of POST /txs/package (patches/0001): the Mutinynet bitcoind
+# End to end check of POST /txs/package (kaleidoswap/electrs): the Mutinynet bitcoind
 # image (Bitcoin Inquisition 29.1) on regtest and this esplora image. A parent
 # and a child built by the wallet are submitted as a package, the way the
 # maker's EsploraChainBackend does, and must land in bitcoind's mempool, be
