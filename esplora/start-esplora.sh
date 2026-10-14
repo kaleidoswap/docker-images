@@ -46,8 +46,12 @@ ARGS="${ARGS} --monitoring-addr 0.0.0.0:${MONITORING_PORT}"
 # The blk-files fetcher panics on Mutinynet ('failed to index N blocks from
 # blk*.dat'); RPC import is robust (matches how the regtest esplora runs).
 [ "${JSONRPC_IMPORT:-true}" = "true" ] && ARGS="${ARGS} --jsonrpc-import"
-ARGS="${ARGS} --cors '*' ${V}"
+ARGS="${ARGS} ${V}"
+# --cors is passed as its own quoted word: inside ARGS the quotes reached
+# electrs literally (Access-Control-Allow-Origin: '*', rejected by browsers),
+# and an unquoted * would glob.
+CORS="${CORS:-*}"
 
-cmd="${APP_DIR}/electrs ${ARGS} $@"
+cmd="${APP_DIR}/electrs ${ARGS} --cors ${CORS} $@"
 echo "Starting esplora: ${cmd}"
-exec gosu "${USER}" ${APP_DIR}/electrs ${ARGS} "$@"
+exec gosu "${USER}" ${APP_DIR}/electrs ${ARGS} --cors "${CORS}" "$@"
