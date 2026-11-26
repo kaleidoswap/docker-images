@@ -190,15 +190,17 @@ dockerfile: [bitcoind/Dockerfile](bitcoind/Dockerfile)
 dockerfile: [electrs/Dockerfile](electrs/Dockerfile)
 
 ### Esplora
-- Esplora HTTP REST API indexer, the same engine that powers `mutinynet.com/api`
-- Built from [kaleidoswap/electrs](https://github.com/kaleidoswap/electrs) (`new-index` branch, pinned to a commit), our fork of MutinyWallet's fork of Blockstream/electrs
-- Unlike the electrs image, it serves the esplora REST API and supports a custom `--signet-magic`, so it can index Mutinynet
-- Adds `POST /txs/package`: a child with its unconfirmed parents is relayed to bitcoind's `submitpackage` (Bitcoin Core 28+), so a child's fee can carry a parent below the mempool minimum (CPFP)
-- Imports blocks over RPC (`--jsonrpc-import`) by default; set `JSONRPC_IMPORT=false` to read `blk*.dat` files instead
-- Built with Rust 1.69 on Debian Bullseye, using the Debian archive since Bullseye's EOL; the runtime image is Debian Trixie (`debian:trixie-slim`)
-- `linux/amd64` only
+- Esplora HTTP REST API indexer (Blockstream's electrs, the engine behind blockstream.info and mutinynet.com/api)
+- Built from [Blockstream/electrs](https://github.com/Blockstream/electrs) (`new-index` branch, pinned to a commit), no patches
+- Indexes Mutinynet and any other custom signet: blocks are imported over RPC (`--jsonrpc-import`, the default), which needs no network magic, and every signet shares the same genesis block. `SIGNET_MAGIC` is accepted and ignored. `JSONRPC_IMPORT=false` reads `blk*.dat` files instead, which works only on the default signet
+- Serves `POST /txs/package`: a child with its unconfirmed parents is relayed to bitcoind's `submitpackage` (Bitcoin Core 28+), so a child's fee can carry a parent below the mempool minimum (CPFP)
+- Bounded RocksDB memory: `DB_BLOCK_CACHE_MB` (default 1024; 4096+ speeds up an initial sync), `DB_WRITE_BUFFER_SIZE_MB` (default 64, used ×2 for each of the 3 databases), `CACHE_INDEX_FILTER_BLOCKS` (default `true`: index and filter blocks live in the block cache instead of growing on the heap with the index)
+- `ZMQ_ADDR` (optional, `ip:port` of bitcoind's `zmqpubhashblock`): new blocks are indexed at once instead of on the next poll
+- Give it a fresh volume: do not reuse an index written by the earlier MutinyWallet-based image (2.5 years of upstream changes)
+- Built with Rust 1.92 on Debian Trixie; the runtime image is Debian Trixie (`debian:trixie-slim`)
+- `linux/amd64` only; CI runs `esplora/smoke-test.sh` (regtest bitcoind, the REST routes our clients use) before pushing
 - Ports: `3000` (esplora REST), `50001` (Electrum RPC), `24224` (monitoring)
-- Configured through environment variables: `NETWORK`, `SIGNET_MAGIC`, `BTCHOST`, `BTCRPCPORT`, `BTCUSER`, `BTCPASS`, `DAEMON_DIR`, `HTTP_PORT`, `ELECTRUM_PORT`, `MONITORING_PORT`, `LOG_LEVEL`
+- Configured through environment variables: `NETWORK`, `BTCHOST`, `BTCRPCPORT`, `BTCUSER`, `BTCPASS`, `DAEMON_DIR`, `HTTP_PORT`, `ELECTRUM_PORT`, `MONITORING_PORT`, `LOG_LEVEL`, `CORS`, plus the memory and ZMQ settings above
 - Reference:
 
 dockerfile: [esplora/Dockerfile](esplora/Dockerfile)
@@ -207,7 +209,7 @@ To run it against a Mutinynet bitcoind reachable as `bitcoind` on the same Docke
 
 ```bash
 docker run -d --name esplora --network <bitcoind network> \
-  -e NETWORK=signet -e SIGNET_MAGIC=a5df2dcb \
+  -e NETWORK=signet \
   -e BTCHOST=bitcoind -e BTCRPCPORT=38332 -e BTCUSER=user -e BTCPASS=default_password \
   -v ./data/esplora:/srv/app/db -v ./data/bitcoin:/bitcoin:ro \
   -p 3000:3000 \
@@ -256,5 +258,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Based on [Mutinynet](https://github.com/MutinyWallet/mutinynet)
 - Uses [RGB Lightning Node](https://github.com/RGB-Tools/rgb-lightning-node)
 - Electrs implementation from [romanz/electrs](https://github.com/romanz/electrs)
-- Esplora indexer from [kaleidoswap/electrs](https://github.com/kaleidoswap/electrs), a fork of [MutinyWallet/electrs](https://github.com/MutinyWallet/electrs) and [Blockstream/electrs](https://github.com/Blockstream/electrs)
+- Esplora indexer from [Blockstream/electrs](https://github.com/Blockstream/electrs)
 - Proxy server from [RGB-Tools/rgb-proxy-server](https://github.com/RGB-Tools/rgb-proxy-server)
