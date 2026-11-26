@@ -115,9 +115,24 @@ jobs:
             app=.
           outputs: type=registry,compression=gzip,compression-level=9
 
-      # Esplora (MutinyWallet/electrs new-index fork) — compiles electrs from
-      # Rust source, so amd64 only: an emulated arm64 Rust build would be
-      # extremely slow / time out, and the only consumer (kaleido-core) is amd64.
+      # Esplora (Blockstream/electrs new-index) — compiles electrs from Rust
+      # source, so amd64 only: an emulated arm64 Rust build would be extremely
+      # slow / time out, and its consumers (chain-test) are amd64.
+      # Built into the local daemon first and smoke-tested against regtest;
+      # the push below reuses the cached layers.
+      - name: Build esplora image for the smoke test
+        uses: docker/build-push-action@v5
+        with:
+          context: ./esplora
+          platforms: linux/amd64
+          load: true
+          tags: esplora-smoke:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test esplora image
+        run: esplora/smoke-test.sh esplora-smoke:ci
+
       - name: Build and push esplora image
         uses: docker/build-push-action@v5
         with:

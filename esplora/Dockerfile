@@ -1,45 +1,30 @@
-# Esplora HTTP REST indexer for Mutinynet (custom signet).
+# Esplora HTTP REST indexer (plus Electrum RPC) for Mutinynet and other signets.
 #
-# Built from kaleidoswap/electrs, our fork of MutinyWallet's fork of
-# Blockstream/electrs (the "new-index" / esplora backend) — the same engine
-# that powers mutinynet.com/api. Unlike romanz/electrs (electrum-only, used by
-# ../electrs), this serves the esplora HTTP REST API (--http-addr) AND supports
-# a custom --signet-magic, so it can index Mutinynet's custom signet.
-#
-# On top of MutinyWallet's last commit, our fork adds what it predates, ported
-# from Blockstream/electrs:
-# - POST /txs/package: a child with its unconfirmed parents relayed to
-#   bitcoind's `submitpackage` (Bitcoin Core 28+), so a child's fee can carry
-#   a parent below the mempool minimum (CPFP). The maker pushes stuck RGB HTLC
-#   claims through with it.
+# Built from Blockstream/electrs (the "new-index" / esplora backend), pinned to
+# a commit. It indexes over RPC (--jsonrpc-import), which never reads the
+# network magic, so a custom signet such as Mutinynet needs no patch: its
+# genesis block and address format are those of every signet. Upstream also
+# has what the older MutinyWallet-based build had to add (POST /txs/package)
+# and bounds RocksDB's memory (--db-block-cache-mb,
+# --cache-index-filter-blocks, --db-write-buffer-size-mb), which the old
+# build could not: its index/filter blocks grew on the heap with the index.
 
-# Rust pinned to the fork's era (MutinyWallet/electrs new-index, last commit
-# 2023-04). Newer toolchains panic building its pinned proc-macro2 1.0.37.
-FROM rust:1.69-slim-bullseye AS builder
+FROM rust:1.92-slim-trixie AS builder
 
-# Debian 11 left LTS on 2026-08-31 and deb.debian.org no longer serves its
-# security pocket, so the build stage installs its tools from the permanent
-# archive instead. Only this throwaway stage runs bullseye; the runtime image
-# below is trixie.
-RUN sed -i -e '/bullseye-security/d' \
-        -e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|' \
-        /etc/apt/sources.list \
-    && apt-get -o Acquire::Check-Valid-Until=false update \
-    && apt-get install -y --no-install-recommends clang cmake git build-essential libsnappy-dev
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends clang libclang-dev cmake git build-essential libsnappy-dev pkg-config
 
 WORKDIR /tmp
 
-ARG GIT_URL="https://github.com/kaleidoswap/electrs.git"
-ARG GIT_REF="new-index"
-# "rest: add POST /txs/package", pinned so a push to the fork can't change
-# the image. The full clone fetches every branch, so the commit resolves
-# whether or not it has merged into new-index yet.
-ARG GIT_COMMIT="ab9242f787e40cbb2c4766ab567e191e537fd46a"
+ARG GIT_URL="https://github.com/Blockstream/electrs.git"
+# new-index, 2026-11-18. The full clone resolves the commit whatever the
+# branch has moved on to since.
+ARG GIT_COMMIT="6cad780be93835b962af735171fae872f9526503"
 
-RUN git clone -b ${GIT_REF} ${GIT_URL} \
+RUN git clone ${GIT_URL} electrs \
     && cd electrs \
     && git checkout ${GIT_COMMIT} \
-    && cargo build --release --bin electrs \
+    && cargo build --release --locked --bin electrs \
     && cp target/release/electrs /tmp/electrs-bin
 
 FROM debian:trixie-slim
@@ -60,7 +45,7 @@ RUN mkdir -p ${APP_DIR}/db
 COPY start-esplora.sh /usr/local/bin
 RUN chmod +x /usr/local/bin/start-esplora.sh
 
-# 3000 = esplora HTTP REST API, 50001 = electrum RPC, 24224 = monitoring
+# 3000 = esplora HTTP REST API, 50001 = electrum RPC, 24224 = monitoring (Prometheus)
 EXPOSE 3000 50001 24224
 STOPSIGNAL SIGINT
 VOLUME ["${APP_DIR}/db"]
