@@ -35,7 +35,7 @@ for _ in $(seq 120); do
   [ "$(curl -fsS localhost:3000/blocks/tip/height 2>/dev/null || true)" = "$TIP" ] && break
   sleep 1
 done
-fail() { echo "FAIL: $*"; docker logs "$ESP" 2>&1 | tail -40; exit 1; }
+fail() { echo "FAIL: $*"; docker logs "$ESP" 2>&1 | tail -40 || true; exit 1; }
 [ "$(curl -fsS localhost:3000/blocks/tip/height)" = "$TIP" ] || fail "tip height is not $TIP"
 curl -fsS localhost:3000/fee-estimates | grep -q '^{' || fail "/fee-estimates"
 curl -fsS "localhost:3000/address/$ADDR/utxo" | grep -q '"txid"' || fail "/address/:a/utxo"
@@ -43,5 +43,8 @@ CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '[]' localhost:3000/txs
 [ "$CODE" != 404 ] || fail "POST /txs/package is missing"
 ORIGIN=$(curl -fsS -D - -o /dev/null localhost:3000/blocks/tip/height | tr -d '\r' | awk -F': ' 'tolower($1)=="access-control-allow-origin"{print $2}')
 [ "$ORIGIN" = "*" ] || fail "Access-Control-Allow-Origin is '$ORIGIN'"
-docker logs "$ESP" 2>&1 | grep -q -- '--cache-index-filter-blocks' || fail "memory flags not passed"
+# Read the log into a file first: `docker logs | grep -q` stops reading at the
+# first match, and under pipefail docker logs' SIGPIPE fails the check.
+docker logs "$ESP" > /tmp/esplora-smoke.log 2>&1
+grep -q -- '--cache-index-filter-blocks' /tmp/esplora-smoke.log || fail "memory flags not passed"
 echo "OK: tip $TIP, fee-estimates, utxo, txs/package ($CODE), CORS, memory flags"
