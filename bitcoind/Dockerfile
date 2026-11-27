@@ -1,9 +1,10 @@
 FROM debian:bookworm-slim AS builder
 
 ARG BITCOIN_VERSION="38351585048e"
-ARG TRIPLET="x86_64-linux-gnu"
-
-ENV BITCOIN_DOWNLOAD_URL="https://github.com/benthecarman/bitcoin/releases/download/mutinynet-inq-29/bitcoin-${BITCOIN_VERSION}-${TRIPLET}.tar.gz"
+# TARGETARCH is set by buildx from --platform and picks the release triplet.
+# Pass TRIPLET only to override it.
+ARG TARGETARCH
+ARG TRIPLET=""
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -19,7 +20,16 @@ RUN apt-get update && \
 
 WORKDIR /tmp
 
-RUN wget -qO "bitcoin.tar.gz" "${BITCOIN_DOWNLOAD_URL}" && \
+RUN if [ -z "${TRIPLET}" ]; then \
+        case "${TARGETARCH}" in \
+            amd64) TRIPLET="x86_64-linux-gnu" ;; \
+            arm64) TRIPLET="aarch64-linux-gnu" ;; \
+            *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+        esac; \
+    fi && \
+    BITCOIN_DOWNLOAD_URL="https://github.com/benthecarman/bitcoin/releases/download/mutinynet-inq-29/bitcoin-${BITCOIN_VERSION}-${TRIPLET}.tar.gz" && \
+    echo "Downloading ${BITCOIN_DOWNLOAD_URL}" && \
+    wget -qO "bitcoin.tar.gz" "${BITCOIN_DOWNLOAD_URL}" && \
     mkdir -p bin && \
     tar -xzvf "bitcoin.tar.gz" -C /tmp/bin --strip-components=2 \
         "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-cli" \

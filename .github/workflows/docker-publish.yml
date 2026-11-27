@@ -13,8 +13,7 @@ env:
   ELECTRS_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mutinynet-electrs
   ESPLORA_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mutinynet-esplora
   BITCOIN_VERSION: "38351585048e"
-  TRIPLET: "x86_64-linux-gnu"
-  GIT_REF: "v0.11.0"
+  GIT_REF: "v0.11.1"
 
 jobs:
   build-and-push:
@@ -94,7 +93,6 @@ jobs:
           labels: ${{ steps.meta-bitcoind.outputs.labels }}
           build-args: |
             BITCOIN_VERSION=${{ env.BITCOIN_VERSION }}
-            TRIPLET=${{ env.TRIPLET }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
